@@ -55,14 +55,24 @@ on login; there is no separate API key/token flow for first-party clients.
 | POST | `/api/payments` | sales, admin | Record a payment (cash/UPI/bank/cheque) |
 | PATCH | `/api/payments/:id` | admin | Verify / reject / mark cheque cleared or bounced |
 
-## Expenses
+## Expenses & expenditure management
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | POST | `/api/expenses/ocr` | sales | Upload a bill photo; runs real OCR, returns editable extracted fields |
-| GET | `/api/expenses` | sales (own), admin | List expenses |
-| POST | `/api/expenses` | sales | Submit an expense (with confirmed, salesman-edited fields) |
-| PATCH | `/api/expenses/:id` | admin | Approve / reject |
+| GET | `/api/expenses` | sales (own), admin | List expenses — filter by status/salesman/category/vendor/month/amount/duplicates |
+| POST | `/api/expenses` | sales | Submit an expense (bill photo or manual, with confirmed fields + optional GPS) |
+| GET | `/api/expenses/:id` | owner, admin | Expense detail |
+| PATCH | `/api/expenses/:id` | admin | Approve / reject / request correction; `{action:"REIMBURSE"}`; `{action:"REOPEN", reason}` (super admin) |
+| PUT | `/api/expenses/:id` | owner (sales) | Edit a not-yet-approved expense, or resubmit after a requested correction |
+| GET | `/api/expenses/summary` | sales | "My Expenditure" dashboard numbers (today/week/month, status totals, limit) |
+| GET/POST | `/api/expenses/categories` | any / admin | List active categories; admin adds a new one |
+| PATCH | `/api/expenses/categories/:id` | admin | Rename, reorder, activate/deactivate a category |
+| GET | `/api/expenses/policy` | any | Company policy the entry form needs (e.g. bill-required-above amount) |
+| GET/POST | `/api/expenses/advances` | sales (own) / admin | List travel advances; admin gives a new one |
+| GET/POST | `/api/expenses/settlements` | sales (own) / admin | Settlement history + live preview; admin closes a period |
+| GET | `/api/admin/expenditure/summary` | admin | Team KPIs, category/day/salesman/month breakdowns, sales-vs-collection-vs-expense |
+| GET | `/api/expenses/export` | admin | CSV export — `report=daily\|salesman\|monthly\|category\|approved\|pending\|reimbursement\|advance-settlement` |
 
 ## Tours & visits
 

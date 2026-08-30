@@ -5,6 +5,7 @@ import { StatCard } from '@/components/ui/StatCard';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/Card';
 import { SalesTrendChart } from '@/components/admin/SalesTrendChart';
 import { CompanySalesChart } from '@/components/admin/CompanySalesChart';
+import { getExpenditureAlerts } from '@/lib/expenditure-reports';
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);
@@ -43,7 +44,7 @@ export default async function AdminDashboardPage() {
     prisma.customer.count({ where: { status: 'APPROVED' } }),
     prisma.customer.count({ where: { status: 'PENDING_APPROVAL' } }),
     prisma.order.count({ where: { status: { in: ['BOOKED', 'CONFIRMED'] } } }),
-    prisma.expense.count({ where: { status: 'SUBMITTED' } }),
+    prisma.expense.count({ where: { status: { in: ['PENDING', 'CORRECTION_REQUESTED'] } } }),
     prisma.product.count({ where: { isActive: true, stockQty: { lte: 10 } } }),
     prisma.order.findMany({ orderBy: { bookedAt: 'desc' }, take: 6, include: { customer: { select: { firmName: true } } } }),
     prisma.order.findMany({ where: { bookedAt: { gte: fourteenDaysAgo } }, select: { bookedAt: true, grandTotal: true } }),
@@ -84,8 +85,9 @@ export default async function AdminDashboardPage() {
   const priorities: { label: string; count: number; href: string }[] = [];
   if (pendingApprovals > 0) priorities.push({ label: 'customer registrations awaiting approval', count: pendingApprovals, href: '/admin/customers?status=PENDING_APPROVAL' });
   if (ordersAwaitingProcessing > 0) priorities.push({ label: 'orders awaiting processing', count: ordersAwaitingProcessing, href: '/admin/orders?status=BOOKED' });
-  if (expensesAwaitingApproval > 0) priorities.push({ label: 'expenses awaiting approval', count: expensesAwaitingApproval, href: '/admin/expenses?status=SUBMITTED' });
+  if (expensesAwaitingApproval > 0) priorities.push({ label: 'expenses awaiting approval', count: expensesAwaitingApproval, href: '/admin/expenses?status=PENDING' });
   if (lowStockProducts > 0) priorities.push({ label: 'products low on stock', count: lowStockProducts, href: '/admin/products?lowStock=true' });
+  priorities.push(...(await getExpenditureAlerts()));
 
   return (
     <div className="space-y-6">

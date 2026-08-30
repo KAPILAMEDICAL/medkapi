@@ -10,6 +10,7 @@ import {
   Tag,
   IndianRupee,
   Receipt,
+  BarChart3,
   UserCog,
   MapPin,
   Settings,
@@ -28,6 +29,7 @@ const ITEMS: NavItem[] = [
   { href: '/admin/tours', label: 'Tours', icon: MapPin },
   { href: '/admin/payments', label: 'Payments', icon: IndianRupee },
   { href: '/admin/expenses', label: 'Expenses', icon: Receipt },
+  { href: '/admin/expenditure', label: 'Expenditure', icon: BarChart3 },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 

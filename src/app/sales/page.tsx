@@ -28,7 +28,7 @@ export default async function SalesHomePage() {
     }),
     prisma.order.aggregate({ where: { salesmanId: salesman.id, bookedAt: { gte: monthStart } }, _sum: { grandTotal: true } }),
     prisma.payment.aggregate({ where: { salesmanId: salesman.id, paidAt: { gte: monthStart } }, _sum: { amount: true } }),
-    prisma.expense.count({ where: { salesmanId: salesman.id, status: 'SUBMITTED' } }),
+    prisma.expense.count({ where: { salesmanId: salesman.id, status: { in: ['PENDING', 'CORRECTION_REQUESTED'] } } }),
   ]);
 
   const stops = tour?.stops ?? [];
@@ -67,7 +67,7 @@ export default async function SalesHomePage() {
           <ActionButton href="/sales/customers" icon={Users} label="Customers" />
           <ActionButton href="/sales/orders/new" icon={ClipboardList} label="Book Order" />
           <ActionButton href="/sales/payments/new" icon={IndianRupee} label="Payment Received" />
-          <ActionButton href="/sales/expenses/new" icon={Receipt} label="Upload Bill / Expense" />
+          <ActionButton href="/sales/expenses" icon={Receipt} label="My Expenditure" />
           <ActionButton href="/sales/offers" icon={Tag} label="Offers" />
         </div>
       </div>

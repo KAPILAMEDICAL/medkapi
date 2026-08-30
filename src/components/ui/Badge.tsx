@@ -42,12 +42,11 @@ const PAYMENT_STATUS_TONE: Record<string, Tone> = {
 };
 
 const EXPENSE_STATUS_TONE: Record<string, Tone> = {
-  DRAFT: 'neutral',
-  SUBMITTED: 'info',
-  UNDER_REVIEW: 'warning',
+  PENDING: 'warning',
+  CORRECTION_REQUESTED: 'info',
   APPROVED: 'success',
   REJECTED: 'danger',
-  PAID: 'success',
+  REIMBURSED: 'brand',
 };
 
 export function StatusBadge({ status, kind }: { status: string; kind: 'order' | 'payment' | 'expense' }) {

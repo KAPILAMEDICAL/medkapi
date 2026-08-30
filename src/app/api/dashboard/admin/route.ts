@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth/rbac';
+import { getExpenditureAlerts } from '@/lib/expenditure-reports';
 import { ok, fail } from '@/lib/api-response';
 
 function startOfDay(d = new Date()) {
@@ -43,7 +44,7 @@ export async function GET() {
       prisma.customer.count({ where: { status: 'APPROVED' } }),
       prisma.customer.count({ where: { status: 'PENDING_APPROVAL' } }),
       prisma.order.count({ where: { status: { in: ['BOOKED', 'CONFIRMED'] } } }),
-      prisma.expense.count({ where: { status: 'SUBMITTED' } }),
+      prisma.expense.count({ where: { status: { in: ['PENDING', 'CORRECTION_REQUESTED'] } } }),
       // one row per customer, most recent ledger entry, to sum total outstanding
       prisma.$queryRaw<{ balance: number }[]>`
         SELECT DISTINCT ON ("customerId") "balanceAfter"::float AS balance
@@ -58,8 +59,9 @@ export async function GET() {
     const priorities: { label: string; count: number; href: string }[] = [];
     if (pendingApprovals > 0) priorities.push({ label: 'customer registrations awaiting approval', count: pendingApprovals, href: '/admin/customers?status=PENDING_APPROVAL' });
     if (ordersAwaitingProcessing > 0) priorities.push({ label: 'orders awaiting processing', count: ordersAwaitingProcessing, href: '/admin/orders?status=BOOKED' });
-    if (expensesAwaitingApproval > 0) priorities.push({ label: 'expenses awaiting approval', count: expensesAwaitingApproval, href: '/admin/expenses?status=SUBMITTED' });
+    if (expensesAwaitingApproval > 0) priorities.push({ label: 'expenses awaiting approval', count: expensesAwaitingApproval, href: '/admin/expenses?status=PENDING' });
     if (lowStockProducts > 0) priorities.push({ label: 'products low on stock', count: lowStockProducts, href: '/admin/products?lowStock=true' });
+    priorities.push(...(await getExpenditureAlerts()));
 
     return ok({
       todaySales: Number(todaySales._sum.grandTotal ?? 0),

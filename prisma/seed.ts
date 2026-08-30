@@ -406,29 +406,106 @@ async function main() {
     }
   }
 
-  // --- Expenses --------------------------------------------------------------
+  // --- Expenditure: bills, a travel advance, and a closed settlement --------
+  // The 15 default categories are inserted by the
+  // 20260830150000_expenditure_management_system migration itself, so the
+  // seed only needs to reference their fixed ids.
+  const [fuelCategory, foodCategory, hotelCategory, tollCategory] = await Promise.all([
+    prisma.expenseCategoryConfig.findUniqueOrThrow({ where: { id: 'excat_fuel' } }),
+    prisma.expenseCategoryConfig.findUniqueOrThrow({ where: { id: 'excat_food' } }),
+    prisma.expenseCategoryConfig.findUniqueOrThrow({ where: { id: 'excat_hotel' } }),
+    prisma.expenseCategoryConfig.findUniqueOrThrow({ where: { id: 'excat_toll' } }),
+  ]);
+
   await prisma.expense.create({
     data: {
       salesmanId: salesmen[0]!.id,
-      category: 'PETROL',
+      categoryId: fuelCategory.id,
       amount: 350,
       expenseDate: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
       merchant: 'Sirsi Highway Fuel Point',
-      status: 'SUBMITTED',
+      billNumber: 'INV-4521',
+      paymentMode: 'CASH',
+      status: 'PENDING',
+      latitude: 14.6197,
+      longitude: 74.8354,
+      locationAccuracy: 18,
+      locationCapturedAt: now,
     },
   });
   await prisma.expense.create({
     data: {
       salesmanId: salesmen[1]!.id,
-      category: 'FOOD',
+      categoryId: foodCategory.id,
       amount: 180,
       expenseDate: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
       merchant: 'Udupi Krishna Bhavan',
+      paymentMode: 'CASH',
       status: 'APPROVED',
+      isLocked: true,
       reviewedByUserId: salesManagerUser.id,
       reviewedAt: now,
     },
   });
+  await prisma.expense.create({
+    data: {
+      salesmanId: salesmen[0]!.id,
+      categoryId: tollCategory.id,
+      amount: 120,
+      expenseDate: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+      merchant: 'NH-63 Toll Plaza',
+      paymentMode: 'UPI',
+      status: 'CORRECTION_REQUESTED',
+      reviewedByUserId: salesManagerUser.id,
+      reviewedAt: now,
+      adminRemarks: 'Bill photo is unreadable — please re-upload a clearer photo.',
+    },
+  });
+  const lastMonthHotelExpense = await prisma.expense.create({
+    data: {
+      salesmanId: salesmen[1]!.id,
+      categoryId: hotelCategory.id,
+      amount: 1400,
+      expenseDate: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000),
+      merchant: 'Hotel Sirsi Residency',
+      billNumber: 'HSR-0091',
+      paymentMode: 'CASH',
+      status: 'APPROVED',
+      isLocked: true,
+      reviewedByUserId: salesManagerUser.id,
+      reviewedAt: new Date(now.getTime() - 34 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // A travel advance for last month, closed into a settlement so the
+  // Admin → Expenses → Settlements screen has real history to show.
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  const advance = await prisma.expenseAdvance.create({
+    data: {
+      salesmanId: salesmen[1]!.id,
+      amount: 2000,
+      purpose: 'Monthly field travel advance',
+      givenAt: lastMonthStart,
+      givenByUserId: salesManagerUser.id,
+    },
+  });
+  const settlement = await prisma.expenseSettlement.create({
+    data: {
+      salesmanId: salesmen[1]!.id,
+      periodStart: lastMonthStart,
+      periodEnd: lastMonthEnd,
+      openingAdvance: 0,
+      newAdvance: 2000,
+      approvedExpenses: 1400,
+      closingBalance: 600,
+      direction: 'AMOUNT_TO_RETURN',
+      notes: 'Demo month-end settlement',
+      settledByUserId: salesManagerUser.id,
+    },
+  });
+  await prisma.expenseAdvance.update({ where: { id: advance.id }, data: { settlementId: settlement.id } });
+  await prisma.expense.update({ where: { id: lastMonthHotelExpense.id }, data: { settlementId: settlement.id } });
 
   console.log('Demo data seed complete.');
 }

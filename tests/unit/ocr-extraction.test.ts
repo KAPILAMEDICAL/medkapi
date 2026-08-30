@@ -9,7 +9,7 @@ describe('extractFieldsFromText', () => {
     expect(fields.date).toBe('2026-08-29');
     expect(fields.amount).toBe(550);
     expect(fields.invoiceNumber).toBe('INV-4521');
-    expect(fields.suggestedCategory).toBe('PETROL');
+    expect(fields.suggestedCategory).toBe('FUEL');
   });
 
   it('extracts an amount from a rupee symbol when there is no "Total" label', () => {

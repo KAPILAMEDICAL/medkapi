@@ -85,7 +85,7 @@ storage providers are clearly logged as dev-only every time they're used.
 ```bash
 npm run typecheck   # tsc --noEmit
 npm run lint        # eslint (next/core-web-vitals)
-npm test            # vitest — 38 unit tests (pricing, OCR extraction, validation, file-signature security, id generation)
+npm test            # vitest — 46 unit tests (pricing, OCR extraction, validation, file-signature security, id generation)
 npm run test:e2e    # playwright — 4 end-to-end specs against a real production build + Postgres
 ```
 
@@ -104,9 +104,10 @@ Prompt's phased approach:
 1. **Architecture** — Next.js 15 (App Router) + TypeScript + Tailwind CSS,
    PostgreSQL + Prisma, provider-abstraction pattern for external services.
    See `docs/ARCHITECTURE.md`.
-2. **Database schema** — 25 models covering identity, customers, sales
-   team, catalog, orders, payments/ledger, expenses, tours/visits,
-   notifications, audit log, settings. See `docs/DATABASE_SCHEMA.md`.
+2. **Database schema** — 26 models covering identity, customers, sales
+   team, catalog, orders, payments/ledger, expenditure (expenses,
+   categories, advances, settlements), tours/visits, notifications, audit
+   log, settings. See `docs/DATABASE_SCHEMA.md`.
 3. **User roles & permissions** — `SUPER_ADMIN`, `ADMIN`, `SALES_MANAGER`,
    `SALES_BOY`, `CUSTOMER`, `ACCOUNTS`, enforced in `src/lib/auth/rbac.ts`
    and re-checked on every route (middleware is a fast first pass only).
@@ -132,13 +133,19 @@ Prompt's phased approach:
     booking shared by customer and sales flows; full status workflow.
 12. **Payments** — `src/lib/payments.ts`: cash/UPI/bank/cheque entry,
     ledger-synced, admin verification.
-13. **Expenses + OCR** — `src/lib/expenses.ts` + real Tesseract.js OCR
-    with an always-editable confirmation step before saving.
+13. **Expenditure management** — `src/lib/expenses.ts`,
+    `src/lib/expense-advances.ts`, `src/lib/expenditure-reports.ts` + real
+    Tesseract.js OCR with an always-editable confirmation step before
+    saving. Covers both bill-photo and manual entry, admin-configurable
+    categories and limits, consent-gated GPS capture, duplicate-bill
+    detection, an approve/reject/request-correction/reimburse workflow
+    with locked-after-approval records, travel advances, month-end
+    settlement, and per-salesman expense-to-sales analytics.
 14. **Tour + GPS** — admin-created tour schedules, salesman visit
     start/finish, browser-permission-gated location capture.
 15. **Reports & analytics** — admin dashboard KPIs, 14-day sales trend,
     company-wise sales, salesman performance, "what needs attention today".
-16. **Testing** — 38 unit tests + 4 Playwright e2e specs (see above).
+16. **Testing** — 46 unit tests + 4 Playwright e2e specs (see above).
 17. **Deployment** — `Dockerfile` (multi-stage, standalone Next.js
     output) + `docker-compose.yml`, `.env.example`, production seed
     script. See `docs/DEPLOYMENT.md`.
@@ -156,5 +163,12 @@ hiding unfinished functionality:
   shipping a paid API key by default — see `MAPS_PROVIDER` in `.env.example`).
 - **WhatsApp/native share sheets** for orders/receipts (share-friendly
   URLs exist; OS-level share integration is a follow-up).
+- **Excel (.xlsx) / server-rendered PDF expense reports** — reports
+  export as CSV today (opens cleanly in Excel/Sheets); the approved
+  expense receipt is a print-styled HTML page (browser "Print → Save as
+  PDF") rather than a server-generated PDF file.
+- **Live GPS map rendering** for expense locations (same limitation as
+  Today's Tour above — coordinates are captured and a "view on map" link
+  opens Google Maps; there's no in-app map tile view).
 - Multi-tenant / multi-branch support (this build targets one
   distributor, one location).

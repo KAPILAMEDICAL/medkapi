@@ -86,25 +86,19 @@ enum PaymentStatus {
   BOUNCED
 }
 
-enum ExpenseCategory {
-  PETROL
-  TRAVEL
-  FOOD
-  ACCOMMODATION
-  AUTO_TAXI
-  PARKING
-  COURIER
-  BUSINESS
-  OTHER
-}
-
 enum ExpenseStatus {
-  DRAFT
-  SUBMITTED
-  UNDER_REVIEW
+  PENDING
+  CORRECTION_REQUESTED
   APPROVED
   REJECTED
-  PAID
+  REIMBURSED
+}
+
+/// Direction of a month-end advance-vs-expense settlement (§13).
+enum SettlementDirection {
+  AMOUNT_TO_RETURN // salesman is still holding unspent advance
+  AMOUNT_TO_REIMBURSE // approved expenses exceeded advance given
+  SETTLED // advance exactly matched approved expenses
 }
 
 enum VisitStatus {
@@ -151,16 +145,18 @@ model User {
   customer Customer?
   salesman Salesman?
 
-  sessions           Session[]
-  notifications      Notification[]
-  auditLogs          AuditLog[]      @relation("AuditActor")
-  ordersCreated      Order[]         @relation("OrderCreatedBy")
-  paymentsRecorded   Payment[]       @relation("PaymentRecordedBy")
-  paymentsVerified   Payment[]       @relation("PaymentVerifiedBy")
-  expensesReviewed   Expense[]       @relation("ExpenseReviewedBy")
-  toursCreated       TourSchedule[]  @relation("TourCreatedBy")
-  settingsUpdated    Setting[]       @relation("SettingUpdatedBy")
-  managedSalesmen    Salesman[]      @relation("SalesmanManager")
+  sessions               Session[]
+  notifications          Notification[]
+  auditLogs              AuditLog[]          @relation("AuditActor")
+  ordersCreated          Order[]             @relation("OrderCreatedBy")
+  paymentsRecorded       Payment[]           @relation("PaymentRecordedBy")
+  paymentsVerified       Payment[]           @relation("PaymentVerifiedBy")
+  expensesReviewed       Expense[]           @relation("ExpenseReviewedBy")
+  expenseAdvancesGiven   ExpenseAdvance[]    @relation("AdvanceGivenBy")
+  expenseSettlementsMade ExpenseSettlement[] @relation("SettlementSettledBy")
+  toursCreated           TourSchedule[]      @relation("TourCreatedBy")
+  settingsUpdated        Setting[]           @relation("SettingUpdatedBy")
+  managedSalesmen        Salesman[]          @relation("SalesmanManager")
 
   @@index([role])
 }
@@ -204,31 +200,31 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id              String          @id @default(cuid())
-  userId          String          @unique
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firmName        String
-  ownerName       String
-  mobile          String          @unique
-  whatsapp        String?
-  email           String?
-  address         String
-  area            String?
-  city            String
-  pincode         String
-  gstNumber       String?
-  drugLicenceNo   String?
-  customerType    CustomerType    @default(PHARMACY)
-  status          CustomerStatus  @default(PENDING_APPROVAL)
-  priceVisibility PriceVisibility @default(MRP_ONLY)
-  creditLimit     Decimal?        @db.Decimal(12, 2)
+  id                 String          @id @default(cuid())
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firmName           String
+  ownerName          String
+  mobile             String          @unique
+  whatsapp           String?
+  email              String?
+  address            String
+  area               String?
+  city               String
+  pincode            String
+  gstNumber          String?
+  drugLicenceNo      String?
+  customerType       CustomerType    @default(PHARMACY)
+  status             CustomerStatus  @default(PENDING_APPROVAL)
+  priceVisibility    PriceVisibility @default(MRP_ONLY)
+  creditLimit        Decimal?        @db.Decimal(12, 2)
   assignedSalesmanId String?
-  assignedSalesman   Salesman?    @relation(fields: [assignedSalesmanId], references: [id])
-  approvedByUserId String?
-  approvedAt       DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  deletedAt       DateTime?
+  assignedSalesman   Salesman?       @relation(fields: [assignedSalesmanId], references: [id])
+  approvedByUserId   String?
+  approvedAt         DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
 
   orders        Order[]
   payments      Payment[]
@@ -243,12 +239,12 @@ model Customer {
 }
 
 model CustomerNote {
-  id         String   @id @default(cuid())
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   authorUserId String
-  note       String
-  createdAt  DateTime @default(now())
+  note         String
+  createdAt    DateTime @default(now())
 }
 
 // ---------------------------------------------------------------------------
@@ -256,28 +252,33 @@ model CustomerNote {
 // ---------------------------------------------------------------------------
 
 model Salesman {
-  id                     String   @id @default(cuid())
-  userId                 String   @unique
-  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  employeeCode           String   @unique
-  name                   String
-  mobile                 String   @unique
-  email                  String?
-  territory              String?
-  monthlySalesTarget     Decimal  @default(0) @db.Decimal(12, 2)
-  monthlyCollectionTarget Decimal @default(0) @db.Decimal(12, 2)
-  managerUserId          String?
-  manager                User?    @relation("SalesmanManager", fields: [managerUserId], references: [id])
-  isActive               Boolean  @default(true)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode            String   @unique
+  name                    String
+  mobile                  String   @unique
+  email                   String?
+  territory               String?
+  monthlySalesTarget      Decimal  @default(0) @db.Decimal(12, 2)
+  monthlyCollectionTarget Decimal  @default(0) @db.Decimal(12, 2)
+  // Overrides the global `expense.monthlyLimitDefault` Setting for this
+  // salesman when set (Master Prompt §8 "Admin can configure expense limits").
+  monthlyExpenseLimit     Decimal? @db.Decimal(12, 2)
+  managerUserId           String?
+  manager                 User?    @relation("SalesmanManager", fields: [managerUserId], references: [id])
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
-  customers      Customer[]
-  ordersBooked   Order[]        @relation("OrderSalesman")
-  paymentsMade   Payment[]      @relation("PaymentSalesman")
-  expenses       Expense[]
-  tourSchedules  TourSchedule[]
-  visits         Visit[]
+  customers          Customer[]
+  ordersBooked       Order[]             @relation("OrderSalesman")
+  paymentsMade       Payment[]           @relation("PaymentSalesman")
+  expenses           Expense[]
+  expenseAdvances    ExpenseAdvance[]
+  expenseSettlements ExpenseSettlement[]
+  tourSchedules      TourSchedule[]
+  visits             Visit[]
 
   @@index([managerUserId])
 }
@@ -327,37 +328,37 @@ model Category {
 }
 
 model Product {
-  id           String   @id @default(cuid())
-  name         String
-  slug         String   @unique
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  divisionId   String?
-  division     Division? @relation(fields: [divisionId], references: [id])
-  categoryId   String?
-  category     Category? @relation(fields: [categoryId], references: [id])
-  composition  String?
-  packSize     String?
-  sku          String?  @unique
-  productCode  String?  @unique
-  hsnCode      String?
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  divisionId  String?
+  division    Division? @relation(fields: [divisionId], references: [id])
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  composition String?
+  packSize    String?
+  sku         String?   @unique
+  productCode String?   @unique
+  hsnCode     String?
 
-  mrp          Decimal  @db.Decimal(10, 2)
-  ptr          Decimal? @db.Decimal(10, 2) // price to retailer
-  pts          Decimal? @db.Decimal(10, 2) // price to stockist
-  gstPercent   Decimal  @default(12) @db.Decimal(4, 2)
+  mrp        Decimal  @db.Decimal(10, 2)
+  ptr        Decimal? @db.Decimal(10, 2) // price to retailer
+  pts        Decimal? @db.Decimal(10, 2) // price to stockist
+  gstPercent Decimal  @default(12) @db.Decimal(4, 2)
 
-  stockQty     Int      @default(0)
-  minOrderQty  Int      @default(1)
+  stockQty    Int @default(0)
+  minOrderQty Int @default(1)
 
   imageUrl     String?
-  isFastMoving Boolean  @default(false)
-  isFeatured   Boolean  @default(false)
-  isActive     Boolean  @default(true)
+  isFastMoving Boolean @default(false)
+  isFeatured   Boolean @default(false)
+  isActive     Boolean @default(true)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   images     ProductImage[]
   orderItems OrderItem[]
@@ -383,22 +384,22 @@ model ProductImage {
 // ---------------------------------------------------------------------------
 
 model Offer {
-  id                 String    @id @default(cuid())
+  id                 String   @id @default(cuid())
   title              String
   description        String?
   posterUrl          String?
-  schemeText          String?  // e.g. "Buy 5 Get 1 Free", "10 + 2"
+  schemeText         String? // e.g. "Buy 5 Get 1 Free", "10 + 2"
   productId          String?
-  product            Product?  @relation(fields: [productId], references: [id])
+  product            Product? @relation(fields: [productId], references: [id])
   companyId          String?
-  company            Company?  @relation(fields: [companyId], references: [id])
+  company            Company? @relation(fields: [companyId], references: [id])
   minQty             Int?
   startDate          DateTime
   endDate            DateTime
-  visibleToCustomers Boolean   @default(true)
-  visibleToSales     Boolean   @default(true)
-  isActive           Boolean   @default(true)
-  createdAt          DateTime  @default(now())
+  visibleToCustomers Boolean  @default(true)
+  visibleToSales     Boolean  @default(true)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
 
   @@index([isActive, startDate, endDate])
 }
@@ -408,21 +409,21 @@ model Offer {
 // ---------------------------------------------------------------------------
 
 model Order {
-  id             String      @id @default(cuid())
-  orderNumber    String      @unique
-  customerId     String
-  customer       Customer    @relation(fields: [customerId], references: [id])
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
   createdByUserId String
-  createdBy      User        @relation("OrderCreatedBy", fields: [createdByUserId], references: [id])
-  salesmanId     String?
-  salesman       Salesman?   @relation("OrderSalesman", fields: [salesmanId], references: [id])
-  source         OrderSource
-  status         OrderStatus @default(BOOKED)
+  createdBy       User        @relation("OrderCreatedBy", fields: [createdByUserId], references: [id])
+  salesmanId      String?
+  salesman        Salesman?   @relation("OrderSalesman", fields: [salesmanId], references: [id])
+  source          OrderSource
+  status          OrderStatus @default(BOOKED)
 
-  subtotal    Decimal @default(0) @db.Decimal(12, 2)
-  taxTotal    Decimal @default(0) @db.Decimal(12, 2)
-  grandTotal  Decimal @default(0) @db.Decimal(12, 2)
-  notes       String?
+  subtotal   Decimal @default(0) @db.Decimal(12, 2)
+  taxTotal   Decimal @default(0) @db.Decimal(12, 2)
+  grandTotal Decimal @default(0) @db.Decimal(12, 2)
+  notes      String?
 
   bookedAt     DateTime  @default(now())
   confirmedAt  DateTime?
@@ -462,14 +463,14 @@ model OrderItem {
 // ---------------------------------------------------------------------------
 
 model Payment {
-  id              String        @id @default(cuid())
-  paymentNumber   String        @unique
-  customerId      String
-  customer        Customer      @relation(fields: [customerId], references: [id])
-  salesmanId      String?
-  salesman        Salesman?     @relation("PaymentSalesman", fields: [salesmanId], references: [id])
+  id               String    @id @default(cuid())
+  paymentNumber    String    @unique
+  customerId       String
+  customer         Customer  @relation(fields: [customerId], references: [id])
+  salesmanId       String?
+  salesman         Salesman? @relation("PaymentSalesman", fields: [salesmanId], references: [id])
   recordedByUserId String
-  recordedBy      User          @relation("PaymentRecordedBy", fields: [recordedByUserId], references: [id])
+  recordedBy       User      @relation("PaymentRecordedBy", fields: [recordedByUserId], references: [id])
 
   amount          Decimal       @db.Decimal(12, 2)
   mode            PaymentMode
@@ -481,12 +482,12 @@ model Payment {
   remarks         String?
   receiptImageUrl String?
 
-  paidAt          DateTime      @default(now())
+  paidAt           DateTime  @default(now())
   verifiedByUserId String?
-  verifiedBy       User?        @relation("PaymentVerifiedBy", fields: [verifiedByUserId], references: [id])
+  verifiedBy       User?     @relation("PaymentVerifiedBy", fields: [verifiedByUserId], references: [id])
   verifiedAt       DateTime?
 
-  ledgerEntries   LedgerEntry[]
+  ledgerEntries LedgerEntry[]
 
   @@index([customerId])
   @@index([status])
@@ -507,42 +508,141 @@ model LedgerEntry {
   referencePayment   Payment?        @relation(fields: [referencePaymentId], references: [id])
   description        String
   debit              Decimal         @default(0) @db.Decimal(12, 2)
-  credit              Decimal        @default(0) @db.Decimal(12, 2)
-  balanceAfter        Decimal        @db.Decimal(12, 2)
-  entryDate           DateTime       @default(now())
+  credit             Decimal         @default(0) @db.Decimal(12, 2)
+  balanceAfter       Decimal         @db.Decimal(12, 2)
+  entryDate          DateTime        @default(now())
 
   @@index([customerId, entryDate])
 }
 
 // ---------------------------------------------------------------------------
-// EXPENSES (with OCR)
+// EXPENDITURE MANAGEMENT (bill photo + manual entry, OCR, GPS, approval,
+// advances & settlement) — see docs/DATABASE_SCHEMA.md "Expenditure module".
 // ---------------------------------------------------------------------------
 
+/// Admin-configurable expense category (Master Prompt §5). `code` is a
+/// stable, never-reused slug referenced by the OCR keyword heuristics and
+/// by report grouping; `name` is the display label admins can rename.
+model ExpenseCategoryConfig {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expenses Expense[]
+
+  @@index([isActive, sortOrder])
+}
+
 model Expense {
-  id             String          @id @default(cuid())
-  salesmanId     String
-  salesman       Salesman        @relation(fields: [salesmanId], references: [id])
-  category       ExpenseCategory
-  amount         Decimal         @db.Decimal(10, 2)
-  expenseDate    DateTime
-  merchant       String?
-  description    String?
-  status         ExpenseStatus   @default(SUBMITTED)
+  id          String                @id @default(cuid())
+  salesmanId  String
+  salesman    Salesman              @relation(fields: [salesmanId], references: [id])
+  categoryId  String
+  category    ExpenseCategoryConfig @relation(fields: [categoryId], references: [id])
+  amount      Decimal               @db.Decimal(10, 2)
+  gstAmount   Decimal?              @db.Decimal(10, 2)
+  expenseDate DateTime
+  merchant    String? // vendor name
+  billNumber  String?
+  paymentMode PaymentMode           @default(CASH)
+  description String?
+  remarks     String?
+  status      ExpenseStatus         @default(PENDING)
 
-  billImageUrl   String?
-  ocrRawText     String?
-  ocrConfidence  Decimal?        @db.Decimal(5, 2)
-  ocrProvider    String?
+  billImageUrl  String?
+  ocrRawText    String?
+  ocrConfidence Decimal? @db.Decimal(5, 2)
+  ocrProvider   String?
 
-  submittedAt    DateTime        @default(now())
+  // GPS location captured only with the salesman's explicit browser/device
+  // permission at submission time — never collected silently (§10).
+  latitude           Decimal?  @db.Decimal(9, 6)
+  longitude          Decimal?  @db.Decimal(9, 6)
+  locationAccuracy   Decimal?  @db.Decimal(8, 2)
+  locationCapturedAt DateTime?
+
+  // Duplicate-bill protection (§16) — flagged automatically at submission,
+  // cleared only by an explicit admin decision on review.
+  isPossibleDuplicate  Boolean   @default(false)
+  duplicateOfExpenseId String?
+  duplicateOf          Expense?  @relation("ExpenseDuplicate", fields: [duplicateOfExpenseId], references: [id])
+  duplicateFlags       Expense[] @relation("ExpenseDuplicate")
+
+  submittedAt    DateTime  @default(now())
+  editedAt       DateTime?
+  editedByUserId String?
+
   reviewedByUserId String?
-  reviewedBy       User?         @relation("ExpenseReviewedBy", fields: [reviewedByUserId], references: [id])
+  reviewedBy       User?     @relation("ExpenseReviewedBy", fields: [reviewedByUserId], references: [id])
   reviewedAt       DateTime?
-  rejectionReason  String?
+  adminRemarks     String? // reason for REJECTED or CORRECTION_REQUESTED
+  reimbursedAt     DateTime?
+
+  // §22 accounting rule: an approved/reimbursed record is locked against
+  // further edits. An authorized admin can explicitly reopen it, and that
+  // action itself is recorded here plus in the immutable AuditLog.
+  isLocked         Boolean   @default(false)
+  reopenedByUserId String?
+  reopenedAt       DateTime?
+
+  settlementId String?
+  settlement   ExpenseSettlement? @relation(fields: [settlementId], references: [id])
 
   @@index([salesmanId])
   @@index([status])
   @@index([expenseDate])
+  @@index([categoryId])
+  @@index([billNumber])
+  @@index([settlementId])
+}
+
+/// A cash advance handed to a salesman for field travel (§12/§13). Advances
+/// are consumed by an ExpenseSettlement once the period is closed.
+model ExpenseAdvance {
+  id            String             @id @default(cuid())
+  salesmanId    String
+  salesman      Salesman           @relation(fields: [salesmanId], references: [id])
+  amount        Decimal            @db.Decimal(12, 2)
+  purpose       String?
+  givenAt       DateTime           @default(now())
+  givenByUserId String
+  givenBy       User               @relation("AdvanceGivenBy", fields: [givenByUserId], references: [id])
+  settlementId  String?
+  settlement    ExpenseSettlement? @relation(fields: [settlementId], references: [id])
+  createdAt     DateTime           @default(now())
+
+  @@index([salesmanId])
+  @@index([settlementId])
+}
+
+/// Month-end (or any custom period) reconciliation of advance vs. approved
+/// expenses for one salesman (§13). Closing a settlement locks every
+/// approved expense and advance it covers against further edits.
+model ExpenseSettlement {
+  id               String              @id @default(cuid())
+  salesmanId       String
+  salesman         Salesman            @relation(fields: [salesmanId], references: [id])
+  periodStart      DateTime            @db.Date
+  periodEnd        DateTime            @db.Date
+  openingAdvance   Decimal             @db.Decimal(12, 2)
+  newAdvance       Decimal             @db.Decimal(12, 2)
+  approvedExpenses Decimal             @db.Decimal(12, 2)
+  closingBalance   Decimal             @db.Decimal(12, 2)
+  direction        SettlementDirection
+  notes            String?
+  settledByUserId  String
+  settledBy        User                @relation("SettlementSettledBy", fields: [settledByUserId], references: [id])
+  settledAt        DateTime            @default(now())
+
+  advances ExpenseAdvance[]
+  expenses Expense[]
+
+  @@unique([salesmanId, periodStart, periodEnd])
+  @@index([salesmanId])
 }
 
 // ---------------------------------------------------------------------------
@@ -583,27 +683,27 @@ model TourStop {
 /// salesman has granted browser/device location permission — never
 /// collected silently. See docs/SECURITY.md "Location & consent".
 model Visit {
-  id           String      @id @default(cuid())
-  salesmanId   String
-  salesman     Salesman    @relation(fields: [salesmanId], references: [id])
-  customerId   String
-  customer     Customer    @relation(fields: [customerId], references: [id])
-  tourStopId   String?     @unique
-  tourStop     TourStop?   @relation(fields: [tourStopId], references: [id])
+  id         String    @id @default(cuid())
+  salesmanId String
+  salesman   Salesman  @relation(fields: [salesmanId], references: [id])
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  tourStopId String?   @unique
+  tourStop   TourStop? @relation(fields: [tourStopId], references: [id])
 
-  status       VisitStatus @default(IN_PROGRESS)
-  startedAt    DateTime    @default(now())
-  endedAt      DateTime?
-  startLat     Decimal?    @db.Decimal(9, 6)
-  startLng     Decimal?    @db.Decimal(9, 6)
-  endLat       Decimal?    @db.Decimal(9, 6)
-  endLng       Decimal?    @db.Decimal(9, 6)
-  locationConsent Boolean  @default(false)
-  notes        String?
+  status          VisitStatus @default(IN_PROGRESS)
+  startedAt       DateTime    @default(now())
+  endedAt         DateTime?
+  startLat        Decimal?    @db.Decimal(9, 6)
+  startLng        Decimal?    @db.Decimal(9, 6)
+  endLat          Decimal?    @db.Decimal(9, 6)
+  endLng          Decimal?    @db.Decimal(9, 6)
+  locationConsent Boolean     @default(false)
+  notes           String?
 
-  orderId      String?     @unique
-  order        Order?      @relation(fields: [orderId], references: [id])
-  paymentId    String?
+  orderId   String? @unique
+  order     Order?  @relation(fields: [orderId], references: [id])
+  paymentId String?
 
   @@index([salesmanId])
   @@index([customerId])

@@ -10,6 +10,7 @@ const patchSchema = z.object({
   territory: z.string().trim().max(100).optional(),
   monthlySalesTarget: z.number().nonnegative().optional(),
   monthlyCollectionTarget: z.number().nonnegative().optional(),
+  monthlyExpenseLimit: z.number().nonnegative().nullable().optional(),
   managerUserId: z.string().cuid().optional(),
 });
 

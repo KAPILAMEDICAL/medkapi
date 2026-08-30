@@ -5,6 +5,7 @@ import { OtpInvalidError, OtpRateLimitError } from '@/lib/auth/otp';
 import { UnsafeFileError } from '@/lib/providers/storage';
 import { OrderBookingError } from '@/lib/orders';
 import { PaymentEntryError } from '@/lib/payments';
+import { ExpenseError } from '@/lib/expenses';
 
 export function ok<T>(data: T, init?: number) {
   return NextResponse.json({ ok: true, data }, { status: init ?? 200 });
@@ -38,7 +39,8 @@ export function fail(err: unknown): NextResponse {
     err instanceof OtpInvalidError ||
     err instanceof UnsafeFileError ||
     err instanceof OrderBookingError ||
-    err instanceof PaymentEntryError
+    err instanceof PaymentEntryError ||
+    err instanceof ExpenseError
   ) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 400 });
   }

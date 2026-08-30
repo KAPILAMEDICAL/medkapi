@@ -42,7 +42,7 @@ export async function GET() {
         }),
         prisma.payment.aggregate({ where: { salesmanId: salesman.id, paidAt: { gte: today } }, _sum: { amount: true } }),
         prisma.payment.aggregate({ where: { salesmanId: salesman.id, paidAt: { gte: monthStart } }, _sum: { amount: true } }),
-        prisma.expense.count({ where: { salesmanId: salesman.id, status: 'SUBMITTED' } }),
+        prisma.expense.count({ where: { salesmanId: salesman.id, status: { in: ['PENDING', 'CORRECTION_REQUESTED'] } } }),
         prisma.customer.count({ where: { assignedSalesmanId: salesman.id, status: 'APPROVED' } }),
       ]);
 

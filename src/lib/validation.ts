@@ -60,24 +60,70 @@ export const paymentEntrySchema = z.object({
   receiptImageUrl: z.string().trim().optional(),
 });
 
+export const expenseLocationSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  accuracy: z.number().nonnegative().optional(),
+});
+
 export const expenseEntrySchema = z.object({
-  category: z.enum([
-    'PETROL',
-    'TRAVEL',
-    'FOOD',
-    'ACCOMMODATION',
-    'AUTO_TAXI',
-    'PARKING',
-    'COURIER',
-    'BUSINESS',
-    'OTHER',
-  ]),
+  // Not constrained to .cuid() — the seeded default categories use fixed,
+  // human-readable ids (e.g. "excat_fuel"), while admin-created ones get a
+  // real Prisma cuid(); createExpense() itself verifies the id resolves to
+  // an active category.
+  categoryId: z.string().trim().min(1, 'Please choose an expense category.').max(60),
   amount: z.number().positive().max(1_000_000),
+  gstAmount: z.number().nonnegative().max(1_000_000).optional(),
   expenseDate: z.string().datetime(),
   merchant: z.string().trim().max(150).optional(),
+  billNumber: z.string().trim().max(60).optional(),
+  paymentMode: z.enum(['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'OTHER']).default('CASH'),
   description: z.string().trim().max(300).optional(),
+  remarks: z.string().trim().max(300).optional(),
   billImageUrl: z.string().trim().optional(),
   ocrRawText: z.string().optional(),
   ocrConfidence: z.number().optional(),
   ocrProvider: z.string().optional(),
+  location: expenseLocationSchema.optional(),
+});
+
+export const expenseUpdateSchema = expenseEntrySchema.partial();
+
+export const expenseReviewSchema = z.object({
+  decision: z.enum(['APPROVED', 'REJECTED', 'CORRECTION_REQUESTED']),
+  adminRemarks: z.string().trim().max(300).optional(),
+});
+
+export const expenseCategoryCreateSchema = z.object({
+  name: z.string().trim().min(2, 'Category name is required.').max(60),
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z][A-Z0-9_]{1,29}$/, 'Use letters, numbers and underscores only.'),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+});
+
+export const expenseCategoryUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(60).optional(),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const expenseAdvanceSchema = z.object({
+  salesmanId: z.string().cuid(),
+  amount: z.number().positive().max(1_000_000),
+  purpose: z.string().trim().max(200).optional(),
+});
+
+export const expenseSettlementSchema = z.object({
+  salesmanId: z.string().cuid(),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  notes: z.string().trim().max(300).optional(),
+});
+
+export const expenseLimitSchema = z.object({
+  salesmanId: z.string().cuid().optional(), // omitted = update the global default
+  monthlyLimit: z.number().positive().max(10_000_000),
 });

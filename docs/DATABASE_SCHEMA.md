@@ -38,10 +38,25 @@ has its own lifecycle (`PENDING → VERIFIED/REJECTED`, or
 `PENDING → CLEARED/BOUNCED` for cheques) independent of the ledger
 entry it produced.
 
-**Expenses** — carries both the salesman's confirmed values (amount,
-category, date — what's actually saved and reviewed) and the raw OCR
-output (`ocrRawText`, `ocrConfidence`, `ocrProvider`) purely as an audit
-trail of what the AI extracted, never as the source of truth.
+**Expenditure** — `Expense` carries both the salesman's confirmed values
+(amount, category, date — what's actually saved and reviewed) and the
+raw OCR output (`ocrRawText`, `ocrConfidence`, `ocrProvider`) purely as
+an audit trail of what the AI extracted, never as the source of truth.
+Category is a foreign key to `ExpenseCategoryConfig` rather than an enum
+so admins can add/rename/retire categories without a migration. GPS
+fields mirror `Visit`'s consent-gated pattern — nullable, populated only
+when the browser granted permission. `isLocked` enforces the "no silent
+edits to an approved record" rule: once `APPROVED`/`REIMBURSED` it can
+only be edited after a `SUPER_ADMIN` explicitly reopens it
+(`reopenedByUserId`/`reopenedAt`), and every edit — including the
+reopen — writes to the generic `AuditLog`, so there is no separate
+expense-specific history table. `ExpenseAdvance` records cash given to a
+salesman for field travel; `ExpenseSettlement` is a point-in-time
+snapshot of one salesman's advance-vs-approved-expense reconciliation
+for a period (opening/new advance, approved expenses, closing balance,
+direction). Closing a settlement stamps `settlementId` onto every
+advance/expense it covers so a later settlement never double-counts
+them — the settlement is a real ledger event, not a derived report.
 
 **Tours & visits** — `TourSchedule` (one per salesman per day) has
 `TourStop` children (planned); `Visit` is the actual field visit, linked
