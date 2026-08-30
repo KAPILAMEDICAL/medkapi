@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { AuthError, ForbiddenError, UnauthorizedError } from '@/lib/auth/rbac';
+import { AuthError, ForbiddenError, NotFoundError, UnauthorizedError } from '@/lib/auth/rbac';
 import { OtpInvalidError, OtpRateLimitError } from '@/lib/auth/otp';
 import { UnsafeFileError } from '@/lib/providers/storage';
+import { OrderBookingError } from '@/lib/orders';
+import { PaymentEntryError } from '@/lib/payments';
 
 export function ok<T>(data: T, init?: number) {
   return NextResponse.json({ ok: true, data }, { status: init ?? 200 });
@@ -28,7 +30,16 @@ export function fail(err: unknown): NextResponse {
   if (err instanceof AuthError) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 401 });
   }
-  if (err instanceof OtpRateLimitError || err instanceof OtpInvalidError || err instanceof UnsafeFileError) {
+  if (err instanceof NotFoundError) {
+    return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
+  }
+  if (
+    err instanceof OtpRateLimitError ||
+    err instanceof OtpInvalidError ||
+    err instanceof UnsafeFileError ||
+    err instanceof OrderBookingError ||
+    err instanceof PaymentEntryError
+  ) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 400 });
   }
   // eslint-disable-next-line no-console

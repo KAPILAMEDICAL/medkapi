@@ -13,6 +13,8 @@ export class ForbiddenError extends Error {}
 export class UnauthorizedError extends Error {}
 /** User-safe authentication failure (bad credentials, inactive account). */
 export class AuthError extends Error {}
+/** The requested record does not exist (or is soft-deleted / inactive). */
+export class NotFoundError extends Error {}
 
 /** Throws if there is no logged-in user, or the user's role is not in `roles`. */
 export async function requireRole(roles: Role[]): Promise<CurrentUser> {

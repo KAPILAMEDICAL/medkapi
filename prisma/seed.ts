@@ -11,7 +11,7 @@
  * only creates the first Super Admin account and reference settings —
  * no fictional catalog/customer data.
  */
-import { PrismaClient, Role, CustomerType, OrderSource, PaymentMode, LedgerEntryType } from '@prisma/client';
+import { PrismaClient, Role, CustomerType, OrderSource, PaymentMode, LedgerEntryType, type Customer } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { generateOrderNumber, generatePaymentNumber } from '../src/lib/ids';
 
@@ -247,7 +247,7 @@ async function main() {
     { firm: 'Siddapur General Medicals', owner: 'Manjunath Gowda', mobile: '9900001004', city: 'Siddapur', status: 'APPROVED' as const },
     { firm: 'Honnavar Care Pharmacy', owner: 'Deepa Rao', mobile: '9900001005', city: 'Honnavar', status: 'PENDING_APPROVAL' as const },
   ];
-  const customers = [];
+  const customers: Customer[] = [];
   for (const c of customersSeed) {
     const user = await prisma.user.upsert({
       where: { mobile: c.mobile },
