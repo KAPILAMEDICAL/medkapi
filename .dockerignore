@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+uploads
+*.log
+.env
+.env.local
+test-results
+playwright-report
+.playwright-otp.json
