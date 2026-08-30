@@ -18,6 +18,8 @@ export const PRODUCT_INCLUDE = {
   images: { orderBy: { sortOrder: 'asc' as const } },
 } satisfies Prisma.ProductInclude;
 
+export type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof PRODUCT_INCLUDE }>;
+
 export interface ProductSearchParams {
   query?: string;
   companyId?: string;
