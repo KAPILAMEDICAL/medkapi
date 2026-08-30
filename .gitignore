@@ -12,6 +12,9 @@ npm-debug.log*
 coverage/
 .vscode/
 uploads/
+.playwright-otp.json
+playwright-report/
+test-results/
 prisma/dev.db
 next-env.d.ts
 tsconfig.tsbuildinfo

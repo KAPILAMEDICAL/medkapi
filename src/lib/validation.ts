@@ -29,7 +29,7 @@ export const customerRegistrationSchema = z.object({
   gstNumber: z
     .string()
     .trim()
-    .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]Z[A-Z\d]$/, 'Enter a valid GSTIN.')
+    .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, 'Enter a valid GSTIN.')
     .optional()
     .or(z.literal(''))
     .transform((v) => (v ? v : undefined)),

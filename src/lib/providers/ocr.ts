@@ -50,7 +50,7 @@ const ANY_RUPEE = /(?:rs\.?|inr|₹)\s*([\d][\d,]*\.?\d{0,2})/i;
 const DATE_PATTERNS = [
   /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/, // dd/mm/yyyy or dd-mm-yyyy
 ];
-const GSTIN = /\b\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]Z[A-Z\d]\b/;
+const GSTIN = /\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/;
 const INVOICE_NO = /(?:invoice|bill)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Za-z0-9\/\-]{3,20})/i;
 
 const CATEGORY_KEYWORDS: Record<string, string> = {
