@@ -1,0 +1,12 @@
+{
+  "name": "Kapila Medical Agencies",
+  "short_name": "Kapila Medical",
+  "description": "Pharmaceutical Wholesale & Distribution — Sirsi, Uttara Kannada, Karnataka",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2f7d68",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
