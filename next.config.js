@@ -9,6 +9,11 @@ const nextConfig = {
       { protocol: 'https', hostname: '**' },
     ],
   },
+  // tesseract.js resolves its worker script relative to its own package
+  // directory at runtime (worker_threads), which breaks if webpack bundles
+  // it into the .next server chunks — keep it (and its wasm core package)
+  // unbundled so Node resolves them straight from node_modules.
+  serverExternalPackages: ['tesseract.js', 'tesseract.js-core'],
   // File uploads (bill photos, cheque photos, product images) are streamed
   // through the /api/uploads route rather than server actions, so we keep
   // the default body size limit tight and enforce real limits in code

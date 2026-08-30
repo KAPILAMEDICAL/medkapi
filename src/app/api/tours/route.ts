@@ -6,11 +6,10 @@ import { ForbiddenError, UnauthorizedError, requireAdmin } from '@/lib/auth/rbac
 import { ok, fail } from '@/lib/api-response';
 import { writeAuditLog } from '@/lib/audit';
 import { notifyUser } from '@/lib/notifications';
+import { getEnrichedTour, startOfDay } from '@/lib/tours';
 
 function parseDate(value: string | null): Date {
-  const d = value ? new Date(value) : new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfDay(value ? new Date(value) : new Date());
 }
 
 /** Today's (or a given date's) tour for the logged-in salesman, or — for admins — for a named salesman. */
@@ -31,45 +30,8 @@ export async function GET(req: NextRequest) {
       throw new ForbiddenError('salesmanId is required.');
     }
 
-    const tour = await prisma.tourSchedule.findUnique({
-      where: { salesmanId_scheduleDate: { salesmanId, scheduleDate } },
-      include: {
-        stops: {
-          orderBy: { sequence: 'asc' },
-          include: {
-            customer: true,
-            visit: true,
-          },
-        },
-      },
-    });
-
-    if (!tour) return ok({ scheduleDate, stops: [] });
-
-    // Enrich each stop with last-order / last-payment / outstanding context
-    // so the salesman sees everything needed to make the visit useful
-    // (Master Prompt §15) without extra taps.
-    const stops = await Promise.all(
-      tour.stops.map(async (stop) => {
-        const [lastOrder, lastPayment, lastLedger] = await Promise.all([
-          prisma.order.findFirst({ where: { customerId: stop.customerId }, orderBy: { bookedAt: 'desc' } }),
-          prisma.payment.findFirst({ where: { customerId: stop.customerId }, orderBy: { paidAt: 'desc' } }),
-          prisma.ledgerEntry.findFirst({ where: { customerId: stop.customerId }, orderBy: { entryDate: 'desc' } }),
-        ]);
-        return {
-          ...stop,
-          context: {
-            lastOrderAt: lastOrder?.bookedAt ?? null,
-            lastOrderAmount: lastOrder ? Number(lastOrder.grandTotal) : null,
-            lastPaymentAt: lastPayment?.paidAt ?? null,
-            lastPaymentAmount: lastPayment ? Number(lastPayment.amount) : null,
-            outstanding: lastLedger ? Number(lastLedger.balanceAfter) : 0,
-          },
-        };
-      }),
-    );
-
-    return ok({ id: tour.id, scheduleDate: tour.scheduleDate, stops });
+    const result = await getEnrichedTour(salesmanId, scheduleDate);
+    return ok(result);
   } catch (err) {
     return fail(err);
   }

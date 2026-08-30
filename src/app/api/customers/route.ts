@@ -1,26 +1,32 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { requireAdmin, ForbiddenError } from '@/lib/auth/rbac';
+import { requireAdmin, requireRole, ForbiddenError } from '@/lib/auth/rbac';
 import { ok, fail } from '@/lib/api-response';
 import { writeAuditLog } from '@/lib/audit';
 import { customerRegistrationSchema } from '@/lib/validation';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAdmin();
+    // Admin staff see everyone (sales managers scoped to their team, below);
+    // a plain sales boy may only list their own assigned customers, e.g. to
+    // pick one when booking an order on their behalf.
+    const session = await requireRole(['SUPER_ADMIN', 'ADMIN', 'SALES_MANAGER', 'ACCOUNTS', 'SALES_BOY']);
     const params = req.nextUrl.searchParams;
     const status = params.get('status');
     const query = params.get('query');
     const salesmanId = params.get('salesmanId');
 
-    // Sales managers only see their team's customers; other admin roles see everyone.
     let scopeWhere: Record<string, unknown> = {};
     if (session.role === 'SALES_MANAGER') {
       const teamIds = (
         await prisma.salesman.findMany({ where: { managerUserId: session.userId }, select: { id: true } })
       ).map((s) => s.id);
       scopeWhere = { assignedSalesmanId: { in: teamIds } };
+    } else if (session.role === 'SALES_BOY') {
+      const salesman = await prisma.salesman.findUnique({ where: { userId: session.userId } });
+      if (!salesman) throw new ForbiddenError('No sales profile found.');
+      scopeWhere = { assignedSalesmanId: salesman.id };
     }
 
     const customers = await prisma.customer.findMany({
