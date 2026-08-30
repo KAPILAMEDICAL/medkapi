@@ -1,0 +1,45 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kapila
+      POSTGRES_PASSWORD: kapila
+      POSTGRES_DB: kapila_medical
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kapila']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://kapila:kapila@db:5432/kapila_medical
+      AUTH_SECRET: ${AUTH_SECRET}
+      SUPER_ADMIN_MOBILE: ${SUPER_ADMIN_MOBILE}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      SMS_PROVIDER: ${SMS_PROVIDER:-console}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      OCR_PROVIDER: ${OCR_PROVIDER:-tesseract}
+      NODE_ENV: production
+    volumes:
+      # Local-disk uploads persisted outside the container — replace with
+      # STORAGE_PROVIDER=s3 for a real multi-instance production deployment.
+      - uploads_data:/app/public/uploads
+
+volumes:
+  db_data:
+  uploads_data:
